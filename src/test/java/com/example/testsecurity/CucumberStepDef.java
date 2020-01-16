@@ -1,29 +1,46 @@
 package com.example.testsecurity;
 
+import static java.util.stream.Collectors.toList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.springframework.security.core.authority.AuthorityUtils.createAuthorityList;
 
-import io.cucumber.java.Before;
 import io.cucumber.java.en.And;
+import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
 import java.io.UnsupportedEncodingException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Collections;
-import org.springframework.security.core.context.SecurityContextHolder;
+import java.util.List;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 public class CucumberStepDef extends SpringIntegrationTest {
+
+  @Given("a client with the following roles : {string}")
+  public void aUserWithTheFollowingRolesCatsReaderCatsWriter(String roles) {
+    if (roles.isEmpty()) {
+      setAuthentication(generateJwtAuth(Collections.emptyList()));
+    } else {
+      List<GrantedAuthority> roleList = Arrays.stream(roles.split(",")).map(String::trim).map(
+          SimpleGrantedAuthority::new)
+          .collect(toList());
+      setAuthentication(generateJwtAuth(roleList));
+    }
+  }
+
   @Then("the client receives status code of {int}")
   public void theClientReceivesStatusCodeOf(int statusCode) {
     assertEquals(statusCode, latestMvcResult.getResponse().getStatus());
   }
 
-  @When("the client calls /cats")
-  public void theClientCallsCats() throws Exception {
-    executeGet();
+  @When("the client calls the {string} endpoint")
+  public void theClientCallsCats(String endpoint) throws Exception {
+    executeGet(endpoint);
   }
 
   @And("the client receives a cat name {string}")
@@ -31,11 +48,9 @@ public class CucumberStepDef extends SpringIntegrationTest {
     assertTrue(latestMvcResult.getResponse().getContentAsString().contains(catName));
   }
 
-  @Before("@WithAdminUser")
-  public void setupAdminUser() {
+  private static Authentication generateJwtAuth(List<GrantedAuthority> roleList) {
     Jwt jwt = new Jwt("toto", Instant.MIN, Instant.MAX, Collections.singletonMap("test", "test"),
         Collections.singletonMap("test", "test"));
-
-    SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt, createAuthorityList("admin")));
+    return new JwtAuthenticationToken(jwt, roleList);
   }
 }
